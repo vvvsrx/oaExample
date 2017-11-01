@@ -48,6 +48,14 @@ class Html extends React.Component {
             <link key={script} rel="preload" href={script} as="script" />
           ))}
           <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+          <link
+            rel="stylesheet"
+            href="assets/metronic/vendors/base/vendors.bundle.css"
+          />
+          <link
+            rel="stylesheet"
+            href="assets/metronic/demo/default/base/style.bundle.css"
+          />
           {styles.map(style => (
             <style
               key={style.id}
