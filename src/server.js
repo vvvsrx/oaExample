@@ -13,8 +13,8 @@ import cookieParser from 'cookie-parser';
 import bodyParser from 'body-parser';
 import expressJwt, { UnauthorizedError as Jwt401Error } from 'express-jwt';
 import expressGraphQL from 'express-graphql';
-import jwt from 'jsonwebtoken';
-import fetch from 'node-fetch';
+// import jwt from 'jsonwebtoken';
+import nodeFetch from 'node-fetch';
 import React from 'react';
 import ReactDOM from 'react-dom/server';
 import PrettyError from 'pretty-error';
@@ -23,11 +23,13 @@ import Html from './components/Html';
 import { ErrorPageWithoutStyle } from './routes/error/ErrorPage';
 import errorPageStyle from './routes/error/ErrorPage.css';
 import createFetch from './createFetch';
-import passport from './passport';
+// import passport from './passport';
 import router from './router';
 import models from './data/models';
 import schema from './data/schema';
 import assets from './assets.json'; // eslint-disable-line import/no-unresolved
+import configureStore from './store/configureStore';
+import { setRuntimeVariable } from './actions/runtime';
 import config from './config';
 
 const app = express();
@@ -68,31 +70,31 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
-app.use(passport.initialize());
+// app.use(passport.initialize());
 
 if (__DEV__) {
   app.enable('trust proxy');
 }
-app.get(
-  '/login/facebook',
-  passport.authenticate('facebook', {
-    scope: ['email', 'user_location'],
-    session: false,
-  }),
-);
-app.get(
-  '/login/facebook/return',
-  passport.authenticate('facebook', {
-    failureRedirect: '/login',
-    session: false,
-  }),
-  (req, res) => {
-    const expiresIn = 60 * 60 * 24 * 180; // 180 days
-    const token = jwt.sign(req.user, config.auth.jwt.secret, { expiresIn });
-    res.cookie('id_token', token, { maxAge: 1000 * expiresIn, httpOnly: true });
-    res.redirect('/');
-  },
-);
+// app.get(
+//   '/login/facebook',
+//   passport.authenticate('facebook', {
+//     scope: ['email', 'user_location'],
+//     session: false,
+//   }),
+// );
+// app.get(
+//   '/login/facebook/return',
+//   passport.authenticate('facebook', {
+//     failureRedirect: '/login',
+//     session: false,
+//   }),
+//   (req, res) => {
+//     const expiresIn = 60 * 60 * 24 * 180; // 180 days
+//     const token = jwt.sign(req.user, config.auth.jwt.secret, { expiresIn });
+//     res.cookie('id_token', token, { maxAge: 1000 * expiresIn, httpOnly: true });
+//     res.redirect('/');
+//   },
+// );
 
 //
 // Register API middleware
@@ -114,6 +116,28 @@ app.get('*', async (req, res, next) => {
   try {
     const css = new Set();
 
+    // Universal HTTP client
+    const fetch = createFetch(nodeFetch, {
+      baseUrl: config.api.serverUrl,
+      cookie: req.headers.cookie,
+    });
+
+    const initialState = {
+      user: req.user || null,
+    };
+
+    const store = configureStore(initialState, {
+      fetch,
+      // I should not use `history` on server.. but how I do redirection? follow universal-router
+    });
+
+    store.dispatch(
+      setRuntimeVariable({
+        name: 'initialNow',
+        value: Date.now(),
+      }),
+    );
+
     // Global (context) variables that can be easily accessed from any React component
     // https://facebook.github.io/react/docs/context.html
     const context = {
@@ -123,11 +147,10 @@ app.get('*', async (req, res, next) => {
         // eslint-disable-next-line no-underscore-dangle
         styles.forEach(style => css.add(style._getCss()));
       },
-      // Universal HTTP client
-      fetch: createFetch(fetch, {
-        baseUrl: config.api.serverUrl,
-        cookie: req.headers.cookie,
-      }),
+      fetch,
+      // You can access redux through react-redux connect
+      store,
+      storeSubscription: null,
     };
 
     const route = await router.resolve({
@@ -143,7 +166,9 @@ app.get('*', async (req, res, next) => {
 
     const data = { ...route };
     data.children = ReactDOM.renderToString(
-      <App context={context}>{route.component}</App>,
+      <App context={context} store={store}>
+        {route.component}
+      </App>,
     );
     data.styles = [{ id: 'css', cssText: [...css].join('') }];
     data.scripts = [assets.vendor.js];
@@ -153,6 +178,7 @@ app.get('*', async (req, res, next) => {
     data.scripts.push(assets.client.js);
     data.app = {
       apiUrl: config.api.clientUrl,
+      state: context.store.getState(),
     };
 
     const html = ReactDOM.renderToStaticMarkup(<Html {...data} />);

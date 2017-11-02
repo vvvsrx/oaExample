@@ -33,3 +33,4 @@ yarn.lock
 public/metronic/
 package-lock.json
 bower_components/
+.vscode/

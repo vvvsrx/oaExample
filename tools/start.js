@@ -108,7 +108,6 @@ async function start() {
 
   // Configure compilation
   await run(clean);
-  await run(metronic);
   const multiCompiler = webpack(webpackConfig);
   const clientCompiler = multiCompiler.compilers.find(
     compiler => compiler.name === 'client',
@@ -208,6 +207,7 @@ async function start() {
   });
 
   // Wait until both client-side and server-side bundles are ready
+  await run(metronic);
   await clientPromise;
   await serverPromise;
 

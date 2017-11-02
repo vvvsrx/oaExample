@@ -30,7 +30,9 @@ module.exports = {
   },
 
   // Database
-  databaseUrl: process.env.DATABASE_URL || 'sqlite:database.sqlite',
+  databaseUrl:
+    process.env.DATABASE_URL ||
+    'postgres://mokingoa:mokingoa888@211.149.222.147:5432/mokingoa',
 
   // Web analytics
   analytics: {
